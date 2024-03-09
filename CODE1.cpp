@@ -13,6 +13,7 @@
 #define SCRN_ADDR 0x3c
 ///
 
+//display object
 Adafruit_SSD1306 display(SCRN_WIDTH, SCRN_HEIGHT, &Wire, OLED_RST);
 
 // time varibles
@@ -39,6 +40,7 @@ void printOLED(String text, bool clear = true, int x=0, int y=0, int textSize = 
 }
 
 void printTime(){
+    
     printOLED(String(days));
     printOLED(":",false,20,0);
     printOLED(String(hours),false,30,0);
@@ -55,6 +57,7 @@ void update_time(){
     if (seconds >= 60){
         minutes += 1;
         timeLast+=60;
+        seconds = 0;
     }
     if (minutes == 60){
         hours+=1;
@@ -84,17 +87,12 @@ void setup() {
     printOLED("Welcome to the MediBox");
 
 
-  // clear the oled
-  display.clearDisplay();
-    
-  // clear the oled
-  display.clearDisplay();
-
   
 }
 
 void loop() {
- 
-  delay(10); // this speeds up the simulation
-}
 
+    update_time();
+    printTime();    
+
+}
