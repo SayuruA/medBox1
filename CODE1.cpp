@@ -1,5 +1,7 @@
 ///Libraries and Definitions
-#include <Wire.h> //for I2C comm
+
+//for I2C comm
+#include <Wire.h> 
 // libraries required for the oled programming
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -11,9 +13,14 @@
 // rst of te screen is as same as the esp-32 board
 #define OLED_RST -1
 #define SCRN_ADDR 0x3c
+
+// indicators
+#define BUZZER 5
+#define LED_1 15
+#define PB_CANCEL 34 //indicator stop button
 ///
 
-//display object
+//oled display object
 Adafruit_SSD1306 display(SCRN_WIDTH, SCRN_HEIGHT, &Wire, OLED_RST);
 
 // time varibles
@@ -24,6 +31,24 @@ int seconds;
 unsigned long  timeNow;
 unsigned long  timeLast;
 
+// alarm variables
+bool alarm_enabled = true;
+int n_alarms = 3;
+int alarm_hours[] = {0, 1,2};////////////////
+int alarm_minutes[] = {1, 10,20};
+bool alarm_triggered[] = {false, false, false};
+
+// buzzer tones
+int n_notes = 8;
+int C = 262;
+int D = 294;
+int E = 330;
+int F = 349;
+int G = 392;
+int A = 440;
+int B = 494;
+int C_H = 523;
+int notes[] = {C, D, E, F, G, A, B, C_H}
 
 
 
@@ -68,6 +93,42 @@ void update_time(){
         hours = 0;
     }
 }
+void update_time_with_check_alarm(){
+    update_time();
+    print_time_now();
+    if (alarm_enabled == true){
+        for (int i = 0; i < n_alarms; i++){
+            if (alarm_triggered[i] == false && alarm_hours[i] == hours && alarm_minutes[i] == minutes){
+                ring_alarm();
+                alarm_triggered[i] = true;
+            }
+        }
+    }
+}
+
+void ring_alarm(){
+    printOLED("MEDICNE TIME!");
+    // turning the LED ON
+    digitalWrite(LED_1, HIGH);
+    // ringing the buzzer
+    bool break_happened = false;
+    while ( !(break_happened) && digitalRead(PB_CANCEL) == HIGH ){
+        for (int i = 0; i < n_notes; i++){
+            if (digitalRead(PB_CANCEL) == LOW){
+                delay(200); // to prevent bouncing of the push button.
+                break_happened = true;
+                break;
+            }
+            tone(BUZZER, notes[i]);
+            delay(500);
+            noTone(BUZZER);
+            delay(2);
+        }
+    }
+    digitalWrite(LED_1, LOW);
+    display.clearDisplay();
+}
+
 
 void setup() {
     
@@ -80,9 +141,12 @@ void setup() {
     // turn on the oled
     display.display();
     delay(2000);
-    //
-
-
+    
+    //setup indicator pins
+    pinMode(BUZZER, OUTPUT);
+    pinMode(LED_1, OUTPUT);
+    // cancel /alarm stop button
+    pinMode(PB_CANCEL, INPUT);
 
     printOLED("Welcome to the MediBox");
 
@@ -92,7 +156,6 @@ void setup() {
 
 void loop() {
 
-    update_time();
-    printTime();    
+    update_time_with_check_alarm();
 
 }
