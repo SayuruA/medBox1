@@ -1,4 +1,3 @@
-
 // author: sayuruA/ 210041M
 // project: Smart MediBox/ EN2853
 
@@ -15,6 +14,7 @@
 // for the Thermal/ Humidity sensor DHT22 
 #include <DHTesp.h>
 #include <WiFi.h>
+
 // specify screen dimensions in pixel count
 #define SCRN_WIDTH 128
 #define SCRN_HEIGHT 64
@@ -85,7 +85,9 @@ String modes[] = {"1 - Set Time", "2 - Set Alarm 1", "3 - Set Alarm 2", "4 - Set
 
 ///**************************************************************************************************************************************///
 
+
 /// Modules/ Functions ********************************************************************************************************************
+
 void printOLED(String text, bool clear = true, int x=0, int y=0, int textSize = 1){
     // clear the oled
     if( clear ){ display.clearDisplay(); }
@@ -97,21 +99,22 @@ void printOLED(String text, bool clear = true, int x=0, int y=0, int textSize = 
     display.println(text);
     display.display();
 }
+
 void update_time_with_check_alarm(){
     update_time();
     printTime();
     if (alarm_enabled == true){
         for (int i = 0; i < n_alarms; i++){
             if (alarm_triggered[i] == false && alarm_hours[i] == hours && alarm_minutes[i] == minutes){
-                ring_alarm();
+                ring_alarm("Medicine Time!");
                 alarm_triggered[i] = true;
             }
         }
     }
 }
+
 void update_time(){
 
-    
     struct tm timeinfo;
     getLocalTime(&timeinfo);
     char  timeHour[3];
@@ -126,27 +129,8 @@ void update_time(){
     char  timeDay[3];
     strftime(timeDay,3,"%d", &timeinfo);
     days = atoi(timeDay);
-    
-    //** time keeping using millis
-
-    // timeNow = millis()/1000;
-    // seconds = timeNow-timeLast;
-
-    // if (seconds >= 60){
-    //     minutes += 1;
-    //     timeLast+=60;
-    //     seconds = 0;
-    // }
-    // if (minutes == 60){
-    //     hours+=1;
-    //     minutes=0;
-    // }
-    // if (hours == 24){
-    //     days += 1;
-    //     hours = 0;
-    // }
-
 }
+
 void printTime(){
     
     
@@ -160,31 +144,38 @@ void printTime(){
     // printOLED(String(seconds),false,90,0);
 }
 
-
-
-void ring_alarm(){
-    printOLED("MEDICNE TIME!");
+void ring_alarm(String text){
+    
+    printOLED(text,true,0,0,2);
     // turning the LED ON
     digitalWrite(LED_1, HIGH);
+    
     // ringing the buzzer
     bool break_happened = false;
     while ( !(break_happened) && digitalRead(PB_CANCEL) == HIGH ){
         for (int i = 0; i < n_notes; i++){
             if (digitalRead(PB_CANCEL) == LOW){
-                delay(200); // to prevent bouncing of the push button.
+                delay(200); // to prevent bouncing effect of the push button.
                 break_happened = true;
                 break;
             }
-            tone(BUZZER, notes[i]);
-            delay(500);
-            noTone(BUZZER);
-            delay(2);
+            ring_buzzer(i);
         }
     }
+    
+    // turn off the alarm
     digitalWrite(LED_1, LOW);
     display.clearDisplay();
 }
 
+void ring_buzzer(int i){
+
+    tone(BUZZER, notes[i]);
+    delay(500);
+    noTone(BUZZER);
+    delay(2);
+
+}
 void go_to_menu(){
     while (digitalRead(PB_CANCEL) == HIGH){
         printOLED(modes[current_mode]);
@@ -320,7 +311,7 @@ void set_time(){
 void set_alarm(int alarm){
     int temp_hour = alarm_hours[alarm];
     while (true){
-        
+        // get the hour of the alarm time
         printOLED("Enter hour: " + String(temp_hour));
         int pressed = wait_for_button_press();
         if (pressed == PB_UP){
@@ -339,17 +330,18 @@ void set_alarm(int alarm){
         else if (pressed == PB_OK){
             delay(200);
             alarm_hours[alarm] = temp_hour;
-            alarm_enabled = true;
             break;
         }
         else if (pressed == PB_CANCEL){
             delay(200);
-            break;
+            return;
         }
     }
     
     int temp_minute = alarm_minutes[alarm];
-    while (true){  
+    
+    while (true){ 
+        // get the minute of the alarm time 
         printOLED("Enter minute: " + String(temp_minute));
         int pressed = wait_for_button_press();
         if (pressed == PB_UP){
@@ -368,17 +360,26 @@ void set_alarm(int alarm){
         else if (pressed == PB_OK){
             delay(200);
             alarm_minutes[alarm] = temp_minute;
+            
+            alarm_enabled = true; // in case there had been a alarm disable, new alarms set after a disable will trigger 
+            alarm_triggered[alarm] = false; // setting an alarm again after it has gone off
+            
             break;
         }
         else if (pressed == PB_CANCEL){
             delay(200);
-            break;
+            return;
         }
     }
-    printOLED("Alarm " + String(alarm));
-    delay(1000);
+    // print alarm is set to the given time 
+    printOLED("Alarm " + String(alarm + 1) + " Set to " + String(temp_hour) + ":" + String(temp_minute));
+    delay(4000);
 }
+
 void config_TZ(){
+
+    // UTC offeset is given in seconds
+    // get the default UTC offset's hours and minutes
 
     int temp_offset_hours = UTC_OFFSET/3600;
     int temp_offset_minutes = UTC_OFFSET/60 - temp_offset_hours*60;
@@ -406,7 +407,7 @@ void config_TZ(){
         }
         else if (pressed == PB_CANCEL){
             delay(200);   
-            break;
+            return;// no need to run further once cancel is pressed
         }
     }
     while (true)
@@ -434,36 +435,52 @@ void config_TZ(){
         }
         else if (pressed == PB_CANCEL){
             delay(200);
-            break;
+            return;
         }
     }
     configTime(UTC_OFFSET, UTC_OFFSET_DST, NTP_SERVER);
-    printOLED("Time zone is set");
-    delay(1000);
+    printOLED("Time zone is set to " + String(temp_offset_hours) + " " +String(temp_offset_minutes));
+    delay(4000);
 }
+
 void check_temp(){
     TempAndHumidity data = dhtSensor.getTempAndHumidity();
 
-    if (data.temperature > 35){    
-        printOLED("TEMP HIGH");
+    if (data.temperature > 32){    
+        printOLED("HIGH TEMP (" + String(data.temperature) + ")");        
+        ring_buzzer(7);
+        delay(300);
+        ring_buzzer(7);
         delay(1000);
+        
     }
     
-    else if (data.temperature < 25){
-        printOLED("TEMP LOW");
+    else if (data.temperature < 26){
+        printOLED("LOW TEMP (" + String(data.temperature) + ")");
+        ring_buzzer(6);
+        delay(300);
+        ring_buzzer(6);
         delay(1000);
     }
     
     // for humidity
-    if (data.humidity > 40){
-        printOLED("HUMIDITY HIGH");
+    if (data.humidity > 80){
+        printOLED("HUMIDITY HIGH ("+ String(data.humidity) + "%" + ")");
+        ring_buzzer(5);
+        delay(300);
+        ring_buzzer(5);
         delay(1000);
     }
-    else if (data.humidity < 20){
-        printOLED("HUMIDITY LOW");
-        delay(1000);
+    else if (data.humidity < 60){
+        printOLED("HUMIDITY LOW ("+ String(data.humidity) + "%" + ")");
+        ring_buzzer(4);
+        delay(300);
+        ring_buzzer(4);
+        delay(1000);delay(1000);
     }
 }
+
+
 //////////////////////////***************************************************************************************************************///
 
 void setup() {
@@ -515,7 +532,6 @@ void setup() {
 }
 
 
-
 void loop() {
 
     update_time_with_check_alarm();
@@ -525,4 +541,5 @@ void loop() {
         go_to_menu();
     }
     check_temp();
+
 }
