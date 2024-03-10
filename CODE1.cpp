@@ -34,7 +34,7 @@ unsigned long  timeLast;
 // alarm variables
 bool alarm_enabled = true;
 int n_alarms = 3;
-int alarm_hours[] = {0, 1,2};////////////////
+int alarm_hours[] = {0, 1,2};
 int alarm_minutes[] = {1, 10,20};
 bool alarm_triggered[] = {false, false, false};
 
@@ -48,7 +48,7 @@ int G = 392;
 int A = 440;
 int B = 494;
 int C_H = 523;
-int notes[] = {C, D, E, F, G, A, B, C_H}
+int notes[] = {C, D, E, F, G, A, B, C_H};
 
 
 
@@ -66,13 +66,15 @@ void printOLED(String text, bool clear = true, int x=0, int y=0, int textSize = 
 
 void printTime(){
     
-    printOLED(String(days));
-    printOLED(":",false,20,0);
-    printOLED(String(hours),false,30,0);
-    printOLED(":",false,50,0);
-    printOLED(String(minutes),false,60,0);
-    printOLED(":",false,80,0);
-    printOLED(String(seconds),false,90,0);
+    
+    printOLED(String(days)+":"+String(hours)+":"+String(minutes)+":"+String(seconds));
+    
+    // printOLED(":",false,20,0);
+    // printOLED(String(hours),false,30,0);
+    // printOLED(":",false,50,0);
+    // printOLED(String(minutes),false,60,0);
+    // printOLED(":",false,80,0);
+    // printOLED(String(seconds),false,90,0);
 }
 
 void update_time(){
@@ -95,7 +97,7 @@ void update_time(){
 }
 void update_time_with_check_alarm(){
     update_time();
-    print_time_now();
+    printTime();
     if (alarm_enabled == true){
         for (int i = 0; i < n_alarms; i++){
             if (alarm_triggered[i] == false && alarm_hours[i] == hours && alarm_minutes[i] == minutes){
