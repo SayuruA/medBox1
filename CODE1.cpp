@@ -1,3 +1,39 @@
+// author: sayuruA/ 210041M
+// project: Smart MediBox/ EN2853
+
+
+
+/// Libraries and Definitions *************************************************************************************************************
+
+
+// for I2C comm
+#include <Wire.h> 
+// for the oled programming
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+// for the Thermal/ Humidity sensor DHT22 
+#include <DHTesp.h>
+#include <WiFi.h>
+
+// specify screen dimensions in pixel count
+#define SCRN_WIDTH 128
+#define SCRN_HEIGHT 64
+
+// rst of te screen is as same as the esp-32 board
+#define OLED_RST -1
+#define SCRN_ADDR 0x3c
+
+// indicators, output pins
+#define BUZZER 5
+#define LED_1 15
+#define PB_CANCEL 34 //indicator stop button
+
+// navigate buttons, output pins
+#define PB_OK 32
+#define PB_UP 33
+#define PB_DOWN 35
+
+// DHT 22, input pin
 #define DHTPIN 12
 
 // NTP server
