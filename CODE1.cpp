@@ -5,6 +5,10 @@
 
 /// Libraries and Definitions *************************************************************************************************************
 
+// for servo
+#include <ESP32Servo.h>
+// for MQTT
+#include <PubSubClient.h>
 
 // for I2C comm
 #include <Wire.h> 
@@ -14,13 +18,7 @@
 // for the Thermal/ Humidity sensor DHT22 
 #include <DHTesp.h>
 #include <WiFi.h>
-// for servo
-#include <ESP32Servo.h>
-// for MQTT
-#include <PubSubClient.h>
-// for wifi and Mqtt
-WiFiClient espClient;               // wifi client,  provides wifi signal (ininstance)
-PubSubClient mqttClient(espClient); // using the wifi instance,  creates an object named mqttClient of type PubSubClient, which is a library used for MQTT communication.
+#include <WiFiUdp.h>
 
 // LDR
 #define LDR_1 36 // right 
@@ -29,30 +27,6 @@ PubSubClient mqttClient(espClient); // using the wifi instance,  creates an obje
 // servo motor
 #define motorPin 17 // servo motor
 
-// for the motorangle calculations
-String msg;
-float motor_angle_offsets;
-float control_factor = 0.75; // controlling factor
-float min_angle = 30;        // minimum angle
-float motor_angle = 0;
-float D_servo;
-
-// needed to calculate light intensity
-float GAMMA = 0.75;
-const float RL10 = 50;
-float MIN_ANGLE = 30;
-float LUX1 = 0;
-float LUX2 = 0;
-
-String temp_value; // needed to save tempreature values
-
-// character arrays needed for publishing data to mqtt server
-char LDR_ar[6];
-char temp_ar[6];
-char high_ldr[38];
-
-// objects
-Servo servo; // setup servor motor
 
 
 // specify screen dimensions in pixel count
@@ -85,6 +59,33 @@ Servo servo; // setup servor motor
 
 /// Global Varibles ***********************************************************************************************************************
 
+// motorangle variables
+String msg;
+float motor_angle_offsets;
+float control_factor = 0.75; 
+float min_angle = 30;        // minimum angle
+float motor_angle = 0;
+float D_servo;
+
+// needed to calculate light intensity
+float GAMMA = 0.75;
+const float RL10 = 50;
+float MIN_ANGLE = 30;
+float LUX1 = 0;
+float LUX2 = 0;
+
+String temp_value; // needed to save tempreature values
+
+// character arrays needed for publishing data to mqtt server
+char LDR_ar[6];
+char temp_ar[6];
+char high_ldr[38];
+
+// objects
+Servo servo; // setup servor motor
+// for wifi and Mqtt
+WiFiClient espClient;               
+PubSubClient mqttClient(espClient); 
 
 // oled display object
 Adafruit_SSD1306 display(SCRN_WIDTH, SCRN_HEIGHT, &Wire, OLED_RST);
@@ -126,14 +127,14 @@ String modes[] = {"1 - Set Time", "2 - Set Alarm 1", "3 - Set Alarm 2", "4 - Set
 
 const char *MQTT_SERVER = "test.mosquitto.org";
 // Producer topics
-const char *LDR_TOPIC = "CURRENT_LDR_210035A";
-const char *SERVO_MOTOR_ANGLE_TOPIC = "SERVO_MOTOR_ANGLE";
-const char *TEMPERATURE_TOPIC = "CURRENT_TEMP_210035A";
-const char *MAX_LDR_TOPIC = "MAX_LDR_210035A";
+const char *LDR_TOPIC = "CURRENT_LDR_210041M";///////////*********?????????
+const char *SERVO_MOTOR_ANGLE_TOPIC = "SERVO_MOTOR_ANGLE";//////////////////////*****???
+const char *TEMPERATURE_TOPIC = "TEMP_210041M";
+const char *MAX_LDR_TOPIC = "LDR_210041M";
 
 // Subscribe topics
-const char *SERVO_MIN_ANGLE_TOPIC = "MIN_ANGLE_210035A";
-const char *SERVO_CONTROL_FACTOR_TOPIC = "CONTROL_FACTOR_210035A";
+const char *SERVO_MIN_ANGLE_TOPIC = "MIN_ANGLE_041M";
+const char *SERVO_CONTROL_FACTOR_TOPIC = "CONTROL_FACTOR_041M";
 ///**************************************************************************************************************************************///
 
 
@@ -532,11 +533,10 @@ void check_temp(){
     }
 }
 
-// function for establishing mqtt connection
-void setupMqtt()
-{
-  mqttClient.setServer("test.mosquitto.org", 1883); // setup mqtt server, "test.mosquitto.org"
-  mqttClient.setCallback(receiveCallback);          // after subscribing, reciver call back recieves values
+
+void setupMqtt(){
+  mqttClient.setServer("test.mosquitto.org", 1883); 
+  mqttClient.setCallback(receiveCallback);          
 }
 
 // function to attempt connection to MQTT broker and subscribes to topics
@@ -552,6 +552,7 @@ void conect_to_broker()
       Serial.print("connected"); // srver connection success
 
       // subscribe to the below topics of Node red
+      mqttClient.subscribe("ON_OFF_041M");
       mqttClient.subscribe(SERVO_CONTROL_FACTOR_TOPIC);
       mqttClient.subscribe(SERVO_MIN_ANGLE_TOPIC); // best place to subscribe (incoming) is in connect to broker
     }
@@ -561,7 +562,7 @@ void conect_to_broker()
     {
       Serial.print("failed; client state:");
       Serial.println(mqttClient.state()); // mqtt client state gives what the problem in connection is
-      delay(3000);                        // wait 5s before attempting reconnection
+      delay(5000);                        // wait 5s before attempting reconnection
     }
   }
 }
@@ -665,6 +666,12 @@ void receiveCallback(char *topic, byte *payload, unsigned int length){
 
   String str_msg; // create a string variable
 
+if (strcmp(topic, "ENTC-ON-OFF_NI") == 0) {
+if (payloadCharAr[0] == '1') {
+  digitalWrite(15, HIGH);
+} else {
+  digitalWrite(15, LOW);
+}
   // if the recived message topic is SERVO_MIN_ANGLE_TOPIC
   if (strcmp(topic, SERVO_MIN_ANGLE_TOPIC) == 0){
     for (int i = 0; i < length; i++){
