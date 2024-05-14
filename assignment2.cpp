@@ -25,7 +25,7 @@ const char *MQTT_SERVER = "test.mosquitto.org";
 // Publishing topics
 const char *TEMPERATURE_TOPIC = "TEMP_210041M";
 const char *MAX_LDR_TOPIC = "LDR_210041M";
-
+const char *Current_High_LDR = "Current_High_LDR";
 // Subscribing topics
 const char *SERVO_MIN_ANGLE_TOPIC = "MIN_ANGLE_041M";
 const char *SERVO_CONTROL_FACTOR_TOPIC = "CONTROL_FACTOR_041M";
@@ -33,7 +33,7 @@ const char *SERVO_CONTROL_FACTOR_TOPIC = "CONTROL_FACTOR_041M";
 // Char arrays to be published
 char tempArr[6];
 char ldr[6];
-
+char maxLdrArr[4];
 
 DHTesp dhtsensor;
 Servo servo; 
@@ -77,6 +77,7 @@ void loop() {
   // Publish the light intensity and temperature data
   mqttClient.publish(TEMPERATURE_TOPIC, tempArr);
   mqttClient.publish(MAX_LDR_TOPIC, ldr);
+  mqttClient.publish(Current_High_LDR, maxLdrArr);
   delay(50);
 
   // CODE USED FOR DEBUGGING // ****END OF MAIN LOOP****
@@ -163,6 +164,9 @@ void moveWindow() {
     maxIntencity = rightChar;
     D = 0.5;
   }
+  // Publishing a value to identify the side with the highest light  intensity 
+  String(D,2).toCharArray(maxLdrArr, 4);
+  
   updateAngle(maxIntencity, D);
 }
 
@@ -177,6 +181,7 @@ void updateAngle(float maxIntencity, float D) {
 }
 
 void check_temp() {
+  
   TempAndHumidity data = dhtsensor.getTempAndHumidity();
   // Adding the temperature string to a char array to be published
   String(data.temperature, 2).toCharArray(tempArr, 6);
