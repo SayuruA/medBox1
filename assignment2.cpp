@@ -1,3 +1,7 @@
+// Author: Sayuru Amugoda/ 210041M
+// MediBox Part 2
+
+// Libraries**********************//
 #include <Wire.h>
 #include <PubSubClient.h>
 #include <Adafruit_GFX.h>
@@ -8,28 +12,28 @@
 #include <WiFiUdp.h>
 #include <ESP32Servo.h>
 
+//Gloabal Variables****************//
 // LDR modules
 #define LDR_LEFT 32
 #define LDR_RIGHT 35
 // DHT 22, input pin
 #define DHTPIN 33
 
-// Gobal variables //
-
+// MQTT Server
 const char *MQTT_SERVER = "test.mosquitto.org";
-// Producer topics
-const char *LDR_TOPIC = "CURRENT_LDR_210041M";
+
+// Publishing topics
 const char *TEMPERATURE_TOPIC = "TEMP_210041M";
 const char *MAX_LDR_TOPIC = "LDR_210041M";
 
-// Subscribe topics
+// Subscribing topics
 const char *SERVO_MIN_ANGLE_TOPIC = "MIN_ANGLE_041M";
 const char *SERVO_CONTROL_FACTOR_TOPIC = "CONTROL_FACTOR_041M";
 
+// Char arrays to be published
 char tempArr[6];
 char ldr[6];
-// char ldrLArr[4];
-// char ldrRArr[4];
+
 
 DHTesp dhtsensor;
 Servo servo; 
@@ -41,61 +45,73 @@ float gamma_i = 0.75;
 WiFiClient espClient;               
 PubSubClient mqttClient(espClient); 
 
+// Main Program *************************//
 
 void setup() {
   
   Serial.begin(115200);
+
+  // Setting up LDR pins and Servo and DHT22  
+  //NOTE: Some analog input pins become disabled by turning on WiFi
   pinMode(LDR_LEFT,INPUT);
   pinMode(LDR_RIGHT,INPUT);
-
   dhtsensor.setup(DHTPIN, DHTesp::DHT22);
-  WiFi.begin("Wokwi-GUEST", "", 6);
-
   servo.attach(23);
+  
+  WiFi.begin("Wokwi-GUEST", "", 6);
   setupMqtt();
 }
 
 void loop() {
 
+  // Checking if the MQTT connection is intact 
   if (!mqttClient.connected()) {
     Serial.println("Reconnecting to MQTT Broker");
-    connectTOBroker();
+    connect2broker();
   }
+  // Checking for incoming messages
   mqttClient.loop();
-  updateLight();
+  // Updating the sliding window status and checking temperature
+  moveWindow();
   check_temp();
+  // Publish the light intensity and temperature data
+  mqttClient.publish(TEMPERATURE_TOPIC, tempArr);
+  mqttClient.publish(MAX_LDR_TOPIC, ldr);
+  delay(50);
+
+  // CODE USED FOR DEBUGGING // ****END OF MAIN LOOP****
+  
   // Serial.print(ldr);Serial.print(" ");
   // Serial.println(tempArr);
-  mqttClient.publish(TEMPERATURE_TOPIC, tempArr);
+  
   //
   // float a = 17.6;
   // String(a,2).toCharArray(ldr, 6);
-  //
-  mqttClient.publish(MAX_LDR_TOPIC, ldr);
-  delay(50);
-  
-  
+
   // int a = analogRead(LDR_LEFT);
   // int b = analogRead(LDR_RIGHT);
   // Serial.print(a);
   // Serial.print(" ");
   // Serial.println(b);
   // delay(100);
-  
+  // ******// 
 }
 
 void setupMqtt() {
   mqttClient.setServer(MQTT_SERVER, 1883);
-  mqttClient.setCallback(recieveCallback);
+  // Giving the call back instructions to mqttClient class  
+  mqttClient.setCallback(callBack);
 }
 
-void connectTOBroker() {
+void connect2broker() {
+  // Repeating until connected
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
+    
     if (mqttClient.connect("ESP32Client-210041M")) {
       Serial.println("MQTT Connected");
-      //mqttClient.subscribe("ENTC-ON-OFF_NI");
       
+      // Subscribe to the required topics
       mqttClient.subscribe(SERVO_MIN_ANGLE_TOPIC);
       mqttClient.subscribe(SERVO_CONTROL_FACTOR_TOPIC);
     } else {
@@ -106,11 +122,13 @@ void connectTOBroker() {
   }
 }
 
-void recieveCallback(char *topic, byte *payload, unsigned int length) {
+void callBack(char *topic, byte *payload, unsigned int length) {
+  // Handling recieved messages
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
 
+  //Char array to store the payload
   char payloadCharAr[length];
   Serial.print("Message Recieved: ");
   for (int i = 0; i < length; i++) {
@@ -118,19 +136,8 @@ void recieveCallback(char *topic, byte *payload, unsigned int length) {
     payloadCharAr[i] = (char)payload[i];
   }
   Serial.println();
-  // if (strcmp(topic, "ENTC-ON-OFF_NI") == 0) {
-  //   if (payloadCharAr[0] == '1') {
-  //     digitalWrite(15, HIGH);
-  //   } else {
-  //     digitalWrite(15, LOW);
-  //   }
-  // } else if (strcmp(topic, "ENTC-ADMIN-SCH-ON_NI") == 0) {
-  //   if (payloadCharAr[0] == 'N') {
-  //     isScheduledON = false;
-  //   } else {
-  //     isScheduledON = true;
-  //     scheduledOnTime = atol(payloadCharAr);
-  //   }
+
+  // Identifying the topic and extracting data accordingly
     if (strcmp(topic, SERVO_MIN_ANGLE_TOPIC) == 0) {
       t_off = String(payloadCharAr).toInt();
 
@@ -139,57 +146,38 @@ void recieveCallback(char *topic, byte *payload, unsigned int length) {
   }
 }
 
-void updateLight() {
-
-  float lsv = analogRead(LDR_LEFT) * 1.00;
-  float rsv = analogRead(LDR_RIGHT) * 1.00;
-  // Serial.println(lsv);
-  // Serial.println(rsv);
-
-  float lsv_cha = (float)(lsv - 4063.00) / (32.00 - 4063.00);
-  float rsv_cha = (float)(rsv - 4063.00) / (32.00 - 4063.00);
-  //  Serial.println(String(lsv_cha)+" "+String(rsv_cha));
+void moveWindow() {
   
-  float max_I = lsv_cha;
+  float left = analogRead(LDR_LEFT) * 1.00;
+  float right = analogRead(LDR_RIGHT) * 1.00;
+
+  // transforming the data values if "32 - 4063" to "0 - 1"
+  float leftChar = (float)(left - 4063.00) / (32.00 - 4063.00);
+  float rightChar = (float)(right - 4063.00) / (32.00 - 4063.00);
+  
+  // Finding the maximum light intensity and accordingly decide D
+  float maxIntencity = leftChar;
   float D = 1.5;
 
-  if (rsv_cha > max_I) {
-    max_I = rsv_cha;
+  if (rightChar > maxIntencity) {
+    maxIntencity = rightChar;
     D = 0.5;
   }
-  updateAngle(max_I, D);
-  
-  // String(lsv_cha).toCharArray(ldrLArr, 4);
-  // String(rsv_cha).toCharArray(ldrRArr, 4);
+  updateAngle(maxIntencity, D);
 }
 
-void updateAngle(float max_I, float D) {
-  //Serial.println(max_I);
-  String(max_I,2).toCharArray(ldr, 6);
-  
-  int theta = t_off * D + (180 - t_off) * max_I * gamma_i;
+void updateAngle(float maxIntencity, float D) {
+  // Adding the light intensity string to a char array to be published  
+  String(maxIntencity,2).toCharArray(ldr, 6);
+  // Calculating theta using the formula
+  int theta = t_off * D + (180 - t_off) * maxIntencity * gamma_i;
   theta = min(theta, 180);
-
+  // Actuating the servo
   servo.write(theta);
 }
 
 void check_temp() {
   TempAndHumidity data = dhtsensor.getTempAndHumidity();
-  ///////////////////////
+  // Adding the temperature string to a char array to be published
   String(data.temperature, 2).toCharArray(tempArr, 6);
-
-  /////////////////////////
-  
-  // if (data.temperature > 32) {
-  //   print_line_time("TEMP HIGH", 0, 40, 1);
-  // } else if (data.temperature < 26) {
-  //   print_line_time("TEMP LOW", 0, 40, 1);
-  // }
-  // if (data.humidity > 80) {
-  //   print_line_time("HUMIDITY HIGH", 0, 50, 1);
-  // } else if (data.humidity < 60) {
-  //   print_line_time("HUMIDITY LOW", 0, 50, 1);
-  // }
-  // display.display();
-
 }
