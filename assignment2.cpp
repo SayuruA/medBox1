@@ -96,8 +96,8 @@ void connectTOBroker() {
       Serial.println("MQTT Connected");
       //mqttClient.subscribe("ENTC-ON-OFF_NI");
       
-      mqttClient.subscribe("SERVO_MIN_ANGLE_TOPIC");
-      mqttClient.subscribe("SERVO_CONTROL_FACTOR_TOPIC");
+      mqttClient.subscribe(SERVO_MIN_ANGLE_TOPIC);
+      mqttClient.subscribe(SERVO_CONTROL_FACTOR_TOPIC);
     } else {
       Serial.print("Failed To connect to MQTT Broker");
       Serial.println(mqttClient.state());
@@ -164,7 +164,7 @@ void updateLight() {
 }
 
 void updateAngle(float max_I, float D) {
-  Serial.println(max_I);
+  //Serial.println(max_I);
   String(max_I,2).toCharArray(ldr, 6);
   
   int theta = t_off * D + (180 - t_off) * max_I * gamma_i;
